@@ -949,7 +949,7 @@ function renderBatteryIgnoredEntities(host: StrategyEditorHost): TemplateResult 
                 <span class="item-name">${entityMap.get(entityId) || entityId}</span>
                 <span class="item-entity-id">${entityId}</span>
               </span>
-              <button class="btn-remove" @click=${() => updateBatteryIgnoredList(host, 'battery_ignored_entities', entityId, false)}>&#x2715;</button>
+              <button class="btn-remove" @click=${() => removeBatteryIgnoredEntity(host, entityId)}>&#x2715;</button>
             </div>
           `
         )}
@@ -982,7 +982,7 @@ function renderBatteryIgnoredEntities(host: StrategyEditorHost): TemplateResult 
                   (entity) => html`
               <div class="entity-search-result" @mousedown=${(e: Event) => {
                 e.preventDefault();
-                updateBatteryIgnoredList(host, 'battery_ignored_entities', entity.entity_id, true);
+                addBatteryIgnoredEntity(host, entity.entity_id);
                 host._batteryIgnoredEntitySearch = '';
                 host.requestUpdate();
               }}>
@@ -1022,7 +1022,7 @@ function renderBatteryIgnoredDevices(host: StrategyEditorHost): TemplateResult {
                 <span class="item-name">${device?.name || deviceId}</span>
                 <span class="item-entity-id">${device?.detail || deviceId}</span>
               </span>
-              <button class="btn-remove" @click=${() => updateBatteryIgnoredList(host, 'battery_ignored_devices', deviceId, false)}>&#x2715;</button>
+              <button class="btn-remove" @click=${() => removeBatteryIgnoredDevice(host, deviceId)}>&#x2715;</button>
             </div>
           `;
         })}
@@ -1055,7 +1055,7 @@ function renderBatteryIgnoredDevices(host: StrategyEditorHost): TemplateResult {
                   (device) => html`
               <div class="entity-search-result" @mousedown=${(e: Event) => {
                 e.preventDefault();
-                updateBatteryIgnoredList(host, 'battery_ignored_devices', device.device_id, true);
+                addBatteryIgnoredDevice(host, device.device_id);
                 host._batteryIgnoredDeviceSearch = '';
                 host.requestUpdate();
               }}>
@@ -1074,17 +1074,30 @@ function renderBatteryIgnoredDevices(host: StrategyEditorHost): TemplateResult {
   `;
 }
 
-function updateBatteryIgnoredList(
-  host: StrategyEditorHost,
-  key: 'battery_ignored_entities' | 'battery_ignored_devices',
-  id: string,
-  add: boolean
-): void {
-  const current = host._config[key] || [];
-  if (add && current.includes(id)) return;
-  const next = add ? [...current, id] : current.filter((x) => x !== id);
+function addBatteryIgnoredEntity(host: StrategyEditorHost, entityId: string): void {
+  const current = host._config.battery_ignored_entities || [];
+  if (current.includes(entityId)) return;
+  host._fireConfigChanged({ ...host._config, battery_ignored_entities: [...current, entityId] });
+}
+
+function removeBatteryIgnoredEntity(host: StrategyEditorHost, entityId: string): void {
+  const next = (host._config.battery_ignored_entities || []).filter((id) => id !== entityId);
   const updated: Simon42StrategyConfig = { ...host._config };
-  if (next.length === 0) delete updated[key];
-  else updated[key] = next;
+  if (next.length === 0) delete updated.battery_ignored_entities;
+  else updated.battery_ignored_entities = next;
+  host._fireConfigChanged(updated);
+}
+
+function addBatteryIgnoredDevice(host: StrategyEditorHost, deviceId: string): void {
+  const current = host._config.battery_ignored_devices || [];
+  if (current.includes(deviceId)) return;
+  host._fireConfigChanged({ ...host._config, battery_ignored_devices: [...current, deviceId] });
+}
+
+function removeBatteryIgnoredDevice(host: StrategyEditorHost, deviceId: string): void {
+  const next = (host._config.battery_ignored_devices || []).filter((id) => id !== deviceId);
+  const updated: Simon42StrategyConfig = { ...host._config };
+  if (next.length === 0) delete updated.battery_ignored_devices;
+  else updated.battery_ignored_devices = next;
   host._fireConfigChanged(updated);
 }
