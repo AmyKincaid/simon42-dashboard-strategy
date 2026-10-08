@@ -344,6 +344,7 @@ export function renderSummariesSection(host: StrategyEditorHost): TemplateResult
           (checked) => host._toggleChanged('hide_battery_notes_entities', checked, false)
         )}
         <div class="description">${localize('editor.hide_battery_notes_entities_desc')}</div>
+        ${renderBatteryIgnoredPicker(host)}
 
         <div style="font-size: 13px; font-weight: 500; color: var(--primary-text-color); margin-top: 12px; margin-bottom: 4px;">
           ${localize('editor.battery_thresholds')}
@@ -908,4 +909,182 @@ function batteryLowChanged(host: StrategyEditorHost, e: Event): void {
   if (value === 50) delete newConfig.battery_low_threshold;
   host._config = newConfig;
   host._fireConfigChanged(newConfig);
+}
+
+/**
+ * Battery blocklist: entities/devices that neither the batteries tile/view
+ * nor the maintenance tile/view (critical batteries) should ever list.
+ * No key in config = nothing ignored (existing behaviour).
+ */
+function renderBatteryIgnoredPicker(host: StrategyEditorHost): TemplateResult {
+  return html`
+    <div style="font-size: 13px; font-weight: 500; color: var(--primary-text-color); margin-top: 12px; margin-bottom: 4px;">
+      ${localize('editor.battery_ignored')}
+    </div>
+    <div class="description" style="margin-left: 0; margin-bottom: 8px;">
+      ${localize('editor.battery_ignored_desc')}
+    </div>
+    ${renderBatteryIgnoredEntities(host)}
+    ${renderBatteryIgnoredDevices(host)}
+  `;
+}
+
+function renderBatteryIgnoredEntities(host: StrategyEditorHost): TemplateResult {
+  const ignored = host._config.battery_ignored_entities || [];
+  const entityMap = new Map(getAllEntitiesForSelect(host._hass).map((e) => [e.entity_id, e.name]));
+  const search = host._batteryIgnoredEntitySearch;
+  const filtered = getFilteredEntities(host._hass, search);
+  return html`
+    <div style="font-size: 13px; color: var(--primary-text-color); margin-bottom: 4px;">
+      ${localize('editor.battery_ignored_entities')}
+    </div>
+    ${
+      ignored.length > 0
+        ? html`
+      <div class="entity-list-container" style="margin-bottom: 8px;">
+        ${ignored.map(
+          (entityId) => html`
+            <div class="entity-list-item" data-entity-id=${entityId}>
+              <span class="item-info">
+                <span class="item-name">${entityMap.get(entityId) || entityId}</span>
+                <span class="item-entity-id">${entityId}</span>
+              </span>
+              <button class="btn-remove" @click=${() => updateBatteryIgnoredList(host, 'battery_ignored_entities', entityId, false)}>&#x2715;</button>
+            </div>
+          `
+        )}
+      </div>
+    `
+        : nothing
+    }
+    <div class="entity-search-picker" style="margin-bottom: 8px;">
+      <input type="text" class="entity-search-input"
+        placeholder=${localize('editor.select_entity')}
+        .value=${search}
+        @input=${(e: Event) => {
+          host._batteryIgnoredEntitySearch = (e.target as HTMLInputElement).value;
+          host.requestUpdate();
+        }}
+        @blur=${() => {
+          setTimeout(() => {
+            host._batteryIgnoredEntitySearch = '';
+            host.requestUpdate();
+          }, 200);
+        }}
+      />
+      ${
+        search.length >= 2
+          ? html`
+        <div class="entity-search-results">
+          ${
+            filtered.length > 0
+              ? filtered.map(
+                  (entity) => html`
+              <div class="entity-search-result" @mousedown=${(e: Event) => {
+                e.preventDefault();
+                updateBatteryIgnoredList(host, 'battery_ignored_entities', entity.entity_id, true);
+                host._batteryIgnoredEntitySearch = '';
+                host.requestUpdate();
+              }}>
+                <span class="entity-search-name">${entity.name}</span>
+                <span class="entity-search-id">${entity.entity_id}</span>
+              </div>
+            `
+                )
+              : html`<div class="entity-search-no-results">${localize('editor.no_results')}</div>`
+          }
+        </div>
+      `
+          : nothing
+      }
+    </div>
+  `;
+}
+
+function renderBatteryIgnoredDevices(host: StrategyEditorHost): TemplateResult {
+  const ignored = host._config.battery_ignored_devices || [];
+  const deviceMap = new Map(getAllDevicesForSelect(host._hass).map((d) => [d.device_id, d]));
+  const search = host._batteryIgnoredDeviceSearch;
+  const filtered = getFilteredDevices(host._hass, search);
+  return html`
+    <div style="font-size: 13px; color: var(--primary-text-color); margin-bottom: 4px;">
+      ${localize('editor.battery_ignored_devices')}
+    </div>
+    ${
+      ignored.length > 0
+        ? html`
+      <div class="entity-list-container" style="margin-bottom: 8px;">
+        ${ignored.map((deviceId) => {
+          const device = deviceMap.get(deviceId);
+          return html`
+            <div class="entity-list-item" data-device-id=${deviceId}>
+              <span class="item-info">
+                <span class="item-name">${device?.name || deviceId}</span>
+                <span class="item-entity-id">${device?.detail || deviceId}</span>
+              </span>
+              <button class="btn-remove" @click=${() => updateBatteryIgnoredList(host, 'battery_ignored_devices', deviceId, false)}>&#x2715;</button>
+            </div>
+          `;
+        })}
+      </div>
+    `
+        : nothing
+    }
+    <div class="entity-search-picker" style="margin-bottom: 8px;">
+      <input type="text" class="entity-search-input"
+        placeholder=${localize('editor.select_device')}
+        .value=${search}
+        @input=${(e: Event) => {
+          host._batteryIgnoredDeviceSearch = (e.target as HTMLInputElement).value;
+          host.requestUpdate();
+        }}
+        @blur=${() => {
+          setTimeout(() => {
+            host._batteryIgnoredDeviceSearch = '';
+            host.requestUpdate();
+          }, 200);
+        }}
+      />
+      ${
+        search.length >= 2
+          ? html`
+        <div class="entity-search-results">
+          ${
+            filtered.length > 0
+              ? filtered.map(
+                  (device) => html`
+              <div class="entity-search-result" @mousedown=${(e: Event) => {
+                e.preventDefault();
+                updateBatteryIgnoredList(host, 'battery_ignored_devices', device.device_id, true);
+                host._batteryIgnoredDeviceSearch = '';
+                host.requestUpdate();
+              }}>
+                <span class="entity-search-name">${device.name}</span>
+                <span class="entity-search-id">${device.detail}</span>
+              </div>
+            `
+                )
+              : html`<div class="entity-search-no-results">${localize('editor.no_results')}</div>`
+          }
+        </div>
+      `
+          : nothing
+      }
+    </div>
+  `;
+}
+
+function updateBatteryIgnoredList(
+  host: StrategyEditorHost,
+  key: 'battery_ignored_entities' | 'battery_ignored_devices',
+  id: string,
+  add: boolean
+): void {
+  const current = host._config[key] || [];
+  if (add && current.includes(id)) return;
+  const next = add ? [...current, id] : current.filter((x) => x !== id);
+  const updated: Simon42StrategyConfig = { ...host._config };
+  if (next.length === 0) delete updated[key];
+  else updated[key] = next;
+  host._fireConfigChanged(updated);
 }
